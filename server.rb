@@ -12,6 +12,8 @@ require 'pry'
 set :port, 3000
 set :bind, '0.0.0.0'
 
+
+
 class GHAapp < Sinatra::Application
 
   # Converts the newlines. Expects that the private key has been set as an
@@ -60,7 +62,7 @@ class GHAapp < Sinatra::Application
       #first iterate over the labels and see if there is anything we want to use 
       labels = @installation_client.labels_for_issue(repo, issue_number)
       #We take al the checklists from SKF and iterate over it to ultimately give back the right list
-      response_raw = HTTParty.get('http://localhost:8888/api/checklist/types')
+      response_raw = HTTParty.get('https://beta.securityknowledgeframework.org/api/checklist/types', :verify => false)
       #Loop for each label comming from github
       labels.each do |label|
         #Also loop all the available checklists from SKF
@@ -68,7 +70,7 @@ class GHAapp < Sinatra::Application
           #When we have a match
           if label['name'] == checklist['title']
             #All the requirements and knowledgebase items are fetched from the SKF API
-            checklist_response = HTTParty.get("http://localhost:8888/api/checklist/item/gitplugin/#{checklist["checklist_type"]}")
+            checklist_response = HTTParty.get("https://beta.securityknowledgeframework.org/api/checklist/item/gitplugin/#{checklist["checklist_type"]}", :verify => false)
             logger.debug checklist_response
             #before we want to add the content to the issue we make pretty markdown of it
             markdown = make_nice_markdown(checklist_response)
@@ -96,7 +98,7 @@ class GHAapp < Sinatra::Application
           message << "\n"
           message << "<details>"
           message << "<summary>"
-          message << "More information" Security requirement for idle time-out
+          message << "More information"
           message << "</summary>"
           message << "\n"
           message << "\n"
