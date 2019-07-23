@@ -23,6 +23,8 @@ class GHAapp < Sinatra::Application
 
   INSTALLATION_ID = ENV['INSTALLATION_ID']
 
+  SKF_ENDPOINT = ENV['SKF_ENDPOINT']
+
   # Your registered app must have a secret set. The secret is used to verify
   # that webhooks are sent by GitHub.
   WEBHOOK_SECRET = ENV['GITHUB_WEBHOOK_SECRET']
@@ -49,8 +51,8 @@ class GHAapp < Sinatra::Application
     verify_webhook_signature
     case request.env['HTTP_X_GITHUB_EVENT']
     when 'issues'
-      if @payload['action'] === 'labeled'
-        add_requirements_to_github_issue(@payload)
+      if @payload['action'] == 'labeled' && @payload['label']['name'] == 'SKF'
+        add_link_to_github_issue(@payload)
       end
     end
     200 # success status
@@ -58,6 +60,24 @@ class GHAapp < Sinatra::Application
 
 
   helpers do
+
+    def add_link_to_github_issue(payload)
+      repo = @payload['repository']['full_name']
+      issue_number = @payload['issue']['number']
+      message = "Click here to set up your SKF security controls: #{skf_link(repo, issue_number)}"
+      @installation_client.add_comment(repo, issue_number, message)
+    end
+
+    def skf_link(repo, issue_number)
+      payload = {
+        repo: repo,
+        issue_number: issue_number
+      }
+
+      # Cryptographically sign the JWT.
+      jwt = JWT.encode(payload, SKF_PRIVATE_KEY, 'RS256')
+      "#{SKF_ENDPOINT}?token=#{jwt}"
+    end
     
     def add_requirements_to_github_issue(payload)
       repo = @payload['repository']['full_name']
