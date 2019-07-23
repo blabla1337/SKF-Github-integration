@@ -18,7 +18,10 @@ class GHAapp < Sinatra::Application
 
   # Converts the newlines. Expects that the private key has been set as an
   # environment variable in PEM format.
-  PRIVATE_KEY = OpenSSL::PKey::RSA.new(ENV['GITHUB_PRIVATE_KEY'].gsub('\n', "\n"))
+  GITHUB_PRIVATE_KEY = OpenSSL::PKey::RSA.new(ENV['GITHUB_PRIVATE_KEY'].gsub('\n', "\n"))
+  SKF_PRIVATE_KEY = OpenSSL::PKey::RSA.new(ENV['SKF_PRIVATE_KEY'].gsub('\n', "\n"))
+
+  INSTALLATION_ID = ENV['INSTALLATION_ID']
 
   # Your registered app must have a secret set. The secret is used to verify
   # that webhooks are sent by GitHub.
@@ -35,15 +38,15 @@ class GHAapp < Sinatra::Application
 
   # Executed before each request to the `/event_handler` route
   before '/' do
-    get_payload_request(request)
-    verify_webhook_signature
     authenticate_app
     # Authenticate the app installation in order to run API operations
-    authenticate_installation(@payload)
+    authenticate_installation
   end
 
 
   post '/' do
+    get_payload_request(request)
+    verify_webhook_signature
     case request.env['HTTP_X_GITHUB_EVENT']
     when 'issues'
       if @payload['action'] === 'labeled'
@@ -148,7 +151,7 @@ class GHAapp < Sinatra::Application
       }
 
       # Cryptographically sign the JWT.
-      jwt = JWT.encode(payload, PRIVATE_KEY, 'RS256')
+      jwt = JWT.encode(payload, GITHUB_PRIVATE_KEY, 'RS256')
 
       # Create the Octokit client, using the JWT as the auth token.
       @app_client ||= Octokit::Client.new(bearer_token: jwt)
@@ -157,8 +160,7 @@ class GHAapp < Sinatra::Application
     # Instantiate an Octokit client, authenticated as an installation of a
     # GitHub App, to run API operations.
     def authenticate_installation(payload)
-      @installation_id = payload['installation']['id']
-      @installation_token = @app_client.create_app_installation_access_token(@installation_id)[:token]
+      @installation_token = @app_client.create_app_installation_access_token(INSTALLATION_ID)[:token]
       @installation_client = Octokit::Client.new(bearer_token: @installation_token)
     end
 
