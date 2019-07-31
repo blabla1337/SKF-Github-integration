@@ -33,7 +33,7 @@ class GHAapp < Sinatra::Application
   APP_IDENTIFIER = ENV['GITHUB_APP_IDENTIFIER']
 
   # Turn on Sinatra's verbose logging during development
-  configure :development do
+  configure :development, :test do
     set :logging, Logger::DEBUG
   end
 
@@ -179,7 +179,7 @@ class GHAapp < Sinatra::Application
 
     # Instantiate an Octokit client, authenticated as an installation of a
     # GitHub App, to run API operations.
-    def authenticate_installation(payload)
+    def authenticate_installation()
       @installation_token = @app_client.create_app_installation_access_token(INSTALLATION_ID)[:token]
       @installation_client = Octokit::Client.new(bearer_token: @installation_token)
     end
@@ -196,6 +196,7 @@ class GHAapp < Sinatra::Application
     # like this: "sha1=123456".
     # See https://developer.github.com/webhooks/securing/ for details.
     def verify_webhook_signature
+      return if GHAapp.test?
       their_signature_header = request.env['HTTP_X_HUB_SIGNATURE'] || 'sha1='
       method, their_digest = their_signature_header.split('=')
       our_digest = OpenSSL::HMAC.hexdigest(method, WEBHOOK_SECRET, @payload_raw)

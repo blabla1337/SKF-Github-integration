@@ -8,3 +8,10 @@ gem 'httparty'
 gem 'pry' 
 gem 'rubocop'
 gem 'rubocop-rails'
+
+group :test  do
+  gem 'minitest'
+  gem 'minitest-reporters'
+  gem 'm'
+  gem 'rack-test'
+end
