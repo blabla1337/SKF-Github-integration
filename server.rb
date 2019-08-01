@@ -38,8 +38,6 @@ class GHAapp < Sinatra::Application
     set :logging, Logger::DEBUG
   end
 
-
-  # Executed before each request to the `/event_handler` route
   before do
     authenticate_app
     # Authenticate the app installation in order to run API operations
@@ -47,20 +45,19 @@ class GHAapp < Sinatra::Application
     get_payload_request(request)
   end
 
-
   post '/' do
-    verify_webhook_signature
-    case request.env['HTTP_X_GITHUB_EVENT']
-    when 'issues'
-      if @payload['action'] == 'labeled' && @payload['label']['name'] == 'SKF'
-        add_link_to_github_issue(@payload)
-      end
+    verify_webhook_signature!
+    if request.env['HTTP_X_GITHUB_EVENT'] == 'issues' &&
+      @payload['action'] == 'labeled' &&
+      @payload['label']['name'] == 'SKF'
+      
+      add_link_to_github_issue(@payload)
     end
     200 # success status
   end
 
   post '/skf_comment' do
-    verify_skf_token
+    verify_skf_token!
     @installation_client.add_comment(
       @payload["repo"],
       @payload["issue_number"],
@@ -68,7 +65,6 @@ class GHAapp < Sinatra::Application
     )
     200
   end
-
 
   helpers do
 
@@ -85,69 +81,8 @@ class GHAapp < Sinatra::Application
         issue_number: issue_number
       }
 
-      # Cryptographically sign the JWT.
       jwt = JWT.encode(payload, SKF_PRIVATE_KEY, 'RS256')
       "#{SKF_ENDPOINT}?token=#{jwt}"
-    end
-    
-    def add_requirements_to_github_issue(payload)
-      repo = @payload['repository']['full_name']
-      issue_number = @payload['issue']['number']
-      #first iterate over the labels and see if there is anything we want to use 
-      labels = @installation_client.labels_for_issue(repo, issue_number)
-      #We take al the checklists from SKF and iterate over it to ultimately give back the right list
-      response_raw = HTTParty.get('https://beta.securityknowledgeframework.org/api/checklist/types', :verify => false)
-      #Loop for each label comming from github
-      labels.each do |label|
-        #Also loop all the available checklists from SKF
-        response_raw['items'].each do |checklist|
-          #When we have a match
-          if label['name'] == checklist['title']
-            #All the requirements and knowledgebase items are fetched from the SKF API
-            checklist_response = HTTParty.get("https://beta.securityknowledgeframework.org/api/checklist/item/gitplugin/#{checklist["checklist_type"]}", :verify => false)
-            logger.debug checklist_response
-            #before we want to add the content to the issue we make pretty markdown of it
-            markdown = make_nice_markdown(checklist_response)
-            #And appended to the github issue as a bot comment
-            my_str = "foobar"
-            @installation_client.add_comment(repo, issue_number, markdown)
-          end
-        end
-      end
-    end
-
-    def make_nice_markdown(markme)
-       message = ""
-       message << '![alt text](https://raw.githubusercontent.com/blabla1337/skf-www/master/img/logos/logo-purple.png "Security knowledge framework")'
-       message << "\n"
-       message << "## Security knowledge framework!"
-       message << "\n"
-       markme['items'].each do |mark|
-          message << "\n"
-          message << "\n"
-          message << "___"
-          message << "\n"
-          message << "\n"
-          message << "- [ ] #{mark['checklist_items_checklistID']} #{mark['checklist_items_content']}"
-          message << "\n"
-          message << "<details>"
-          message << "<summary>"
-          message << "More information"
-          message << "</summary>"
-          message << "\n"
-          message << "\n"
-          message << "```"
-          message << "\n"
-          message << "#{mark['kb_item_title']}"
-          message << "\n"
-          message << "\n"
-          message << "#{mark['kb_items_content']}"
-          message << "\n"
-          message << "```"
-          message << "\n"
-          message << "</details>"
-        end
-      message
     end
     
     # Saves the raw payload and converts the payload to JSON format
@@ -206,7 +141,7 @@ class GHAapp < Sinatra::Application
     # hexdigest to compute the signature. The `X-HUB-Signature` looks something
     # like this: "sha1=123456".
     # See https://developer.github.com/webhooks/securing/ for details.
-    def verify_webhook_signature
+    def verify_webhook_signature!
       return if GHAapp.test?
       their_signature_header = request.env['HTTP_X_HUB_SIGNATURE'] || 'sha1='
       method, their_digest = their_signature_header.split('=')
@@ -219,7 +154,7 @@ class GHAapp < Sinatra::Application
       logger.debug "----    action #{@payload['action']}" unless @payload['action'].nil?
     end
 
-    def verify_skf_token
+    def verify_skf_token!
       token = request.env['HTTP_X_SKF_AUTH']
       halt 401 unless token == SKF_AUTH_TOKEN
     end
