@@ -14,4 +14,5 @@ group :test  do
   gem 'minitest-reporters'
   gem 'm'
   gem 'rack-test'
+  gem 'webmock'
 end
