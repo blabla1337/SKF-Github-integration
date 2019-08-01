@@ -24,6 +24,7 @@ class GHAapp < Sinatra::Application
   INSTALLATION_ID = ENV['INSTALLATION_ID']
 
   SKF_ENDPOINT = ENV['SKF_ENDPOINT']
+  SKF_AUTH_TOKEN = ENV['SKF_AUTH_TOKEN']
 
   # Your registered app must have a secret set. The secret is used to verify
   # that webhooks are sent by GitHub.
@@ -39,15 +40,15 @@ class GHAapp < Sinatra::Application
 
 
   # Executed before each request to the `/event_handler` route
-  before '/' do
+  before do
     authenticate_app
     # Authenticate the app installation in order to run API operations
     authenticate_installation
+    get_payload_request(request)
   end
 
 
   post '/' do
-    get_payload_request(request)
     verify_webhook_signature
     case request.env['HTTP_X_GITHUB_EVENT']
     when 'issues'
@@ -56,6 +57,16 @@ class GHAapp < Sinatra::Application
       end
     end
     200 # success status
+  end
+
+  post '/skf_comment' do
+    verify_skf_token
+    @installation_client.add_comment(
+      @payload["repo"],
+      @payload["issue_number"],
+      @payload["comment_text"]
+    )
+    200
   end
 
 
@@ -206,6 +217,11 @@ class GHAapp < Sinatra::Application
       # The action value indicates the which action triggered the event.
       logger.debug "---- received event #{request.env['HTTP_X_GITHUB_EVENT']}"
       logger.debug "----    action #{@payload['action']}" unless @payload['action'].nil?
+    end
+
+    def verify_skf_token
+      token = request.env['HTTP_X_SKF_AUTH']
+      halt 401 unless token == SKF_AUTH_TOKEN
     end
 
   end
